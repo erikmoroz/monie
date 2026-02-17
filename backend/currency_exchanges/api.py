@@ -10,6 +10,7 @@ from ninja.files import UploadedFile
 
 from budget_periods.models import BudgetPeriod
 from common.auth import JWTAuth
+from common.throttle import validate_file_size
 from currency_exchanges.models import CurrencyExchange
 from currency_exchanges.schemas import (
     CurrencyExchangeCreate,
@@ -231,6 +232,9 @@ def import_exchanges(
         raise HttpError(404, 'No workspace selected')
 
     require_role(user, workspace.id, ['owner', 'admin', 'member'])
+
+    # Validate file size (max 5MB)
+    validate_file_size(file, max_size_mb=5)
 
     period = get_workspace_period(budget_period_id, workspace.id)
     if not period:
