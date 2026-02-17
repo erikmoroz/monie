@@ -14,8 +14,10 @@ from budget_periods.models import BudgetPeriod
 from categories.models import Category
 from categories.schemas import CategoryCreate, CategoryOut, CategoryUpdate
 from common.auth import JWTAuth
+from common.permissions import require_role
 from common.throttle import validate_file_size
 from core.schemas import DetailOut
+from workspaces.models import WRITE_ROLES
 
 router = Router(tags=['Categories'])
 
@@ -129,11 +131,13 @@ def import_categories(
     file: UploadedFile = File(...),
 ):
     """Import categories from a JSON file into a budget period."""
-    workspace = request.auth.current_workspace
+    user = request.auth
+    workspace = user.current_workspace
 
     if not workspace:
         raise HttpError(404, 'No workspace selected')
 
+    require_role(user, workspace.id, WRITE_ROLES)
     # Validate file size (max 5MB)
     validate_file_size(file, max_size_mb=5)
 
@@ -199,6 +203,8 @@ def create_category(request, data: CategoryCreate):
     if not workspace:
         raise HttpError(404, 'No workspace selected')
 
+    require_role(user, workspace.id, WRITE_ROLES)
+
     # Verify the budget period belongs to current workspace
     period = get_workspace_period(data.budget_period_id, workspace.id)
     if not period:
@@ -226,6 +232,8 @@ def update_category(request, category_id: int, data: CategoryUpdate):
     if not workspace:
         raise HttpError(404, 'No workspace selected')
 
+    require_role(user, workspace.id, WRITE_ROLES)
+
     category = get_workspace_category(category_id, workspace.id)
     if not category:
         return 404, {'detail': 'Category not found'}
@@ -242,10 +250,13 @@ def update_category(request, category_id: int, data: CategoryUpdate):
 @router.delete('/{category_id}', response={204: None, 404: DetailOut}, auth=JWTAuth())
 def delete_category(request, category_id: int):
     """Delete a category."""
-    workspace = request.auth.current_workspace
+    user = request.auth
+    workspace = user.current_workspace
 
     if not workspace:
         raise HttpError(404, 'No workspace selected')
+
+    require_role(user, workspace.id, WRITE_ROLES)
 
     category = get_workspace_category(category_id, workspace.id)
     if not category:

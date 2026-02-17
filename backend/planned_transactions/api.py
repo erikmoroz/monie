@@ -13,6 +13,7 @@ from ninja.files import UploadedFile
 from budget_periods.models import BudgetPeriod
 from categories.models import Category
 from common.auth import JWTAuth
+from common.permissions import require_role
 from common.throttle import validate_file_size
 from period_balances.models import PeriodBalance
 from planned_transactions.models import PlannedTransaction
@@ -23,7 +24,7 @@ from planned_transactions.schemas import (
     PlannedTransactionUpdate,
 )
 from transactions.models import Transaction
-from workspaces.models import WorkspaceMember
+from workspaces.models import WRITE_ROLES
 
 router = Router(tags=['Planned Transactions'])
 
@@ -96,16 +97,6 @@ def update_period_balance_expense(period_id: int, currency: str, amount: Decimal
     balance.save(update_fields=['total_expenses', 'closing_balance'])
 
 
-def require_role(user, workspace_id: int, allowed_roles: list[str]) -> None:
-    """Raise error if user's role is not in allowed_roles."""
-    try:
-        member = WorkspaceMember.objects.get(workspace_id=workspace_id, user=user)
-        role = member.role
-    except WorkspaceMember.DoesNotExist:
-        role = 'viewer'
-    if role not in allowed_roles:
-        raise HttpError(403, f'Insufficient permissions. Required: {", ".join(allowed_roles)}. Your role: {role}')
-
 
 # =============================================================================
 # Planned Transaction Endpoints
@@ -145,7 +136,7 @@ def create_planned(request: HttpRequest, data: PlannedTransactionCreate):
     if not workspace:
         raise HttpError(404, 'No workspace selected')
 
-    require_role(user, workspace.id, ['owner', 'admin', 'member'])
+    require_role(user, workspace.id, WRITE_ROLES)
 
     period_id = data.budget_period_id
     if period_id:
@@ -250,7 +241,7 @@ def import_planned_transactions(
     if not workspace:
         raise HttpError(404, 'No workspace selected')
 
-    require_role(user, workspace.id, ['owner', 'admin', 'member'])
+    require_role(user, workspace.id, WRITE_ROLES)
 
     # Validate file size (max 5MB)
     validate_file_size(file, max_size_mb=5)
@@ -333,7 +324,7 @@ def update_planned(request: HttpRequest, planned_id: int, data: PlannedTransacti
     if not workspace:
         raise HttpError(404, 'No workspace selected')
 
-    require_role(user, workspace.id, ['owner', 'admin', 'member'])
+    require_role(user, workspace.id, WRITE_ROLES)
 
     planned = get_workspace_planned(planned_id, workspace.id)
     if not planned:
@@ -392,7 +383,7 @@ def delete_planned(request: HttpRequest, planned_id: int):
     if not workspace:
         raise HttpError(404, 'No workspace selected')
 
-    require_role(user, workspace.id, ['owner', 'admin', 'member'])
+    require_role(user, workspace.id, WRITE_ROLES)
 
     planned = get_workspace_planned(planned_id, workspace.id)
     if not planned:
@@ -416,7 +407,7 @@ def execute_planned(
     if not workspace:
         raise HttpError(404, 'No workspace selected')
 
-    require_role(user, workspace.id, ['owner', 'admin', 'member'])
+    require_role(user, workspace.id, WRITE_ROLES)
 
     planned = get_workspace_planned(planned_id, workspace.id)
     if not planned:

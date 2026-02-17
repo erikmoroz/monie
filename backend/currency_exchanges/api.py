@@ -10,6 +10,7 @@ from ninja.files import UploadedFile
 
 from budget_periods.models import BudgetPeriod
 from common.auth import JWTAuth
+from common.permissions import require_role
 from common.throttle import validate_file_size
 from currency_exchanges.models import CurrencyExchange
 from currency_exchanges.schemas import (
@@ -19,7 +20,7 @@ from currency_exchanges.schemas import (
     CurrencyExchangeUpdate,
 )
 from period_balances.models import PeriodBalance
-from workspaces.models import WorkspaceMember
+from workspaces.models import WRITE_ROLES
 
 router = Router(tags=['Currency Exchanges'])
 
@@ -85,16 +86,6 @@ def update_period_balance(balance: PeriodBalance) -> None:
     balance.save(update_fields=['exchanges_in', 'exchanges_out', 'closing_balance'])
 
 
-def require_role(user, workspace_id: int, allowed_roles: list[str]) -> None:
-    """Raise error if user's role is not in allowed_roles."""
-    try:
-        member = WorkspaceMember.objects.get(workspace_id=workspace_id, user=user)
-        role = member.role
-    except WorkspaceMember.DoesNotExist:
-        role = 'viewer'
-    if role not in allowed_roles:
-        raise HttpError(403, f'Insufficient permissions. Required: {", ".join(allowed_roles)}. Your role: {role}')
-
 
 # =============================================================================
 # Currency Exchange Endpoints
@@ -131,7 +122,7 @@ def create_exchange(request: HttpRequest, data: CurrencyExchangeCreate):
     if not workspace:
         raise HttpError(404, 'No workspace selected')
 
-    require_role(user, workspace.id, ['owner', 'admin', 'member'])
+    require_role(user, workspace.id, WRITE_ROLES)
 
     with transaction.atomic():
         # Find period within current workspace
@@ -231,7 +222,7 @@ def import_exchanges(
     if not workspace:
         raise HttpError(404, 'No workspace selected')
 
-    require_role(user, workspace.id, ['owner', 'admin', 'member'])
+    require_role(user, workspace.id, WRITE_ROLES)
 
     # Validate file size (max 5MB)
     validate_file_size(file, max_size_mb=5)
@@ -320,7 +311,7 @@ def update_exchange(request: HttpRequest, exchange_id: int, data: CurrencyExchan
     if not workspace:
         raise HttpError(404, 'No workspace selected')
 
-    require_role(user, workspace.id, ['owner', 'admin', 'member'])
+    require_role(user, workspace.id, WRITE_ROLES)
 
     exchange = get_workspace_exchange(exchange_id, workspace.id)
     if not exchange:
@@ -388,7 +379,7 @@ def delete_exchange(request: HttpRequest, exchange_id: int):
     if not workspace:
         raise HttpError(404, 'No workspace selected')
 
-    require_role(user, workspace.id, ['owner', 'admin', 'member'])
+    require_role(user, workspace.id, WRITE_ROLES)
 
     exchange = get_workspace_exchange(exchange_id, workspace.id)
     if not exchange:
